@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"gonum.org/v1/gonum/graph"
@@ -87,14 +88,54 @@ func (self *Graph) CreateNodes() {
 	}
 }
 
+func normalize(vector []float32) []float32 {
+	min := slices.Min(vector)
+	max := slices.Max(vector)
+
+	// Normalize the vector
+	var ret []float32
+	for _, value := range vector {
+		normalizedValue := (value - min) / (max - min)
+		ret = append(ret, normalizedValue)
+	}
+
+	return ret
+}
+
+func (self *Graph) CalculateWeights() []float32 {
+	preferences := map[string]float32{
+		"weight_ticket":   0.4,
+		"weight_distance": 0.6,
+	}
+	var scores []float32
+	// normalize the data
+	var dist []float32
+	var ticket []float32
+	for i := range self.data {
+		dist = append(dist, float32(self.data[i].distance))
+		ticket = append(ticket, self.data[i].ticket_average)
+	}
+
+	norm_dist := normalize(dist)
+	norm_ticket := normalize(ticket)
+
+	// define the rule for the weight
+	for i := range dist {
+		score := (preferences["weight_ticket"] * norm_ticket[i]) + (preferences["weight_distance"] * norm_dist[i])
+		scores = append(scores, score)
+	}
+
+	return scores
+}
+
 func (self *Graph) CreateEdges() {
 	// create the edges
+	weights := self.CalculateWeights()
 	for i := range self.data {
 		from := self.g.Node(self.data[i].ID)
 		to := self.g.Node(self.data[i].to)
 		if from != nil && to != nil && from != to {
-			// create a weight
-			self.g.SetWeightedEdge(self.g.NewWeightedEdge(from, to, 3.0))
+			self.g.SetWeightedEdge(self.g.NewWeightedEdge(from, to, float64(weights[i])))
 		}
 	}
 }
@@ -129,7 +170,6 @@ func (self *Graph) DisplayShortest(_path []graph.Node, weight float64) {
 		}
 	}
 
-	// Append weight at the end if relevant
 	builder.WriteString(fmt.Sprintf(" (Weight: %.2f)", weight))
 	fmt.Println(builder.String())
 }
