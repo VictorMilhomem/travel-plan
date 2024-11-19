@@ -1,8 +1,13 @@
 package main
 
 import (
+	"encoding/csv"
+	"flag"
 	"fmt"
+	"log"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gonum.org/v1/gonum/graph"
@@ -174,20 +179,86 @@ func (self *Graph) DisplayShortest(_path []graph.Node, weight float64) {
 	fmt.Println(builder.String())
 }
 
+func readCsv(path string) []*CsvFile {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatalf("Could not open file %s\n", path)
+	}
+
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		log.Fatalf("Error reading file:", err)
+	}
+
+	var data []*CsvFile
+	for i, row := range records {
+		if i == 0 {
+			continue
+		}
+		id, err := strconv.ParseInt(row[0], 10, 64)
+		if err != nil {
+			log.Printf("Error parsing ID at line %d: %v", i+1, err)
+			continue
+		}
+		city := row[1]
+		to, err := strconv.ParseInt(row[2], 10, 64)
+		if err != nil {
+			log.Printf("Error parsing To at line %d: %v", i+1, err)
+			continue
+		}
+		ticketAverage, err := strconv.ParseFloat(row[3], 32)
+		if err != nil {
+			log.Printf("Error parsing Ticket Average at line %d: %v", i+1, err)
+			continue
+		}
+		distance, err := strconv.ParseInt(row[4], 10, 64)
+		if err != nil {
+			log.Printf("Error parsing Distance at line %d: %v", i+1, err)
+			continue
+		}
+		hours, err := strconv.ParseFloat(row[5], 32)
+		if err != nil {
+			log.Printf("Error parsing Hours at line %d: %v", i+1, err)
+			continue
+		}
+
+		data = append(data, NewCsvFile(id, city, to, float32(ticketAverage), int64(distance), float32(hours)))
+	}
+	return data
+}
+
 func main() {
 	var data []*CsvFile
 
-	data = append(data, NewCsvFile(0, "Braga", 0, 0, 0, 0))
-	data = append(data, NewCsvFile(1, "Lisbon", 0, 40, 50, 5))
-	data = append(data, NewCsvFile(2, "Porto", 0, 25, 30, 1.5))
-	data = append(data, NewCsvFile(2, "Porto", 1, 30, 26, 1.5))
+	path := flag.String("filepath", "example.csv", "Specify the filepath")
+	to := flag.Int64("to", 1, "Specify the ID of the desired place to go")
+	help := flag.Bool("help", false, "Display usage instructions")
+	flag.Parse()
 
+	if *help || len(os.Args) == 1 {
+		fmt.Println("Usage:\tplan -filepath=<your_filepath>.csv -to=<destination_id>\n")
+		fmt.Println("\t=============== Your CSV file should be in the following format ==================")
+		fmt.Println("\tid,city,to,ticket_average,distance,hours")
+		fmt.Println("\t0, Braga, 0, 0, 0, 0")
+		fmt.Println("\t1, Lisbon, 0,40, 50, 5")
+		fmt.Println("\t2, Porto, 0, 25, 30, 1.5")
+		fmt.Println("\t2, Porto, 1, 30, 26, 1.5")
+		return
+	}
+
+	data = readCsv(*path)
 	g := NewGraph(data)
 	g.CreateNodes()
 	g.CreateEdges()
+
 	fmt.Println("====== Graph ======")
 	fmt.Println(g.String())
+	fmt.Println("====== Graph ======")
 
-	_path, weight := g.GetShortestTo(0, 2)
+	_path, weight := g.GetShortestTo(0, *to)
 	g.DisplayShortest(_path, weight)
 }
